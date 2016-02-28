@@ -3,7 +3,15 @@
   <head>
     <title>multiple window</title>
   </head>
+  <script>
+    function openNewWindow(){
+      window.open('http://localhost:7500/anotherPage.html');
+    }
+  </script>
   <body>
     <h1>Hello World!</h1>
+    <div>
+      <a id='clicker' href='#' onclick='openNewWindow()'>open new window</a>
+    </div>
   </body>
 </html>

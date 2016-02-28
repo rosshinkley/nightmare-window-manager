@@ -1,9 +1,31 @@
 var Nightmare = require('nightmare'),
   debug = require('debug')('nightmare:window-manager');
 
+Nightmare.action('windowManager', function(name, options, parent, win, renderer, done) {
+  parent.on('windowManager', function() {
+    var app = require('electron')
+      .app;
+    app.on('browser-window-created', function(event, win) {
+      win.webContents.on('did-finish-load', function(event) {
+        parent.emit('changeFocusWindow', win.id);
+      });
+    });
+    parent.emit('windowManager');
+  });
+  done();
+}, function(done) {
+  var self = this;
+  this.focusedWindow = 1;
+  this.child.on('changeFocusWindow', function(windowId) {
+    self.focusedWindow = windowId;
+  });
+  this.child.once('windowManager', done);
+  this.child.emit('windowManager');
+});
+
 Nightmare.action('windows',
   function(name, options, parent, win, renderer, done) {
-    parent.on('windows', function() {
+    parent.on('windows', function(focusedWindowId) {
       var BrowserWindow = require('electron')
         .BrowserWindow;
       var windows = BrowserWindow.getAllWindows()
@@ -11,7 +33,7 @@ Nightmare.action('windows',
           return {
             id: win.id,
             isDestroyed: win.isDestroyed(),
-            isFocused: win.isFocused(),
+            isFocused: win.id == focusedWindowId,
             isVisible: win.isVisible(),
             bounds: win.getBounds(),
             size: win.getSize(),
@@ -32,7 +54,7 @@ Nightmare.action('windows',
     this.child.once('windows', function(windows) {
       done(null, windows);
     });
-    this.child.emit('windows');
+    this.child.emit('windows', this.focusedWindow);
   });
 
 Nightmare.action('waitWindowLoad',
@@ -71,8 +93,8 @@ Nightmare.action('currentWindow',
   function(name, options, parent, win, renderer, done) {
     var BrowserWindow = require('electron')
       .BrowserWindow;
-    parent.on('currentWindow', function() {
-      var win = BrowserWindow.getFocusedWindow();
+    parent.on('currentWindow', function(focusedWindowId) {
+      var win = BrowserWindow.fromId(focusedWindowId);
       current = {
         id: win.id,
         isDestroyed: win.isDestroyed(),
@@ -94,16 +116,30 @@ Nightmare.action('currentWindow',
     this.child.once('currentWindow', function(window) {
       done(null, window);
     });
-    this.child.emit('currentWindow');
+    this.child.emit('currentWindow', this.focusedWindow);
   });
 
 Nightmare.action('closeWindow',
   function(name, options, parent, win, renderer, done) {
     var BrowserWindow = require('electron')
       .BrowserWindow;
-    parent.on('closeWindow', function(windowId) {
+    parent.on('closeWindow', function(windowId, focusedWindow) {
+
       var win = BrowserWindow.fromId(windowId);
       win.close();
+
+      if (windowId == focusedWindow) {
+        var unclosedWindows = BrowserWindow.getAllWindows()
+          .filter(function(win) {
+            return !win.isDestroyed();
+          });
+        if (unclosedWindows.length == 0) {
+          throw new Error('no windows to fall back to!');
+        } else {
+          parent.emit('changeFocusWindow', unclosedWindows[0].id);
+        }
+      }
+
       parent.emit('closeWindow');
     });
     done();
@@ -111,23 +147,15 @@ Nightmare.action('closeWindow',
   },
   function(windowId, done) {
     this.child.once('closeWindow', done);
-    this.child.emit('closeWindow', windowId);
+    this.child.emit('closeWindow', windowId, this.focusedWindow);
   });
 
 Nightmare.action('focusWindow',
   function(name, options, parent, win, renderer, done) {
-    var BrowserWindow = require('electron')
-      .BrowserWindow;
     parent.on('focusWindow', function(windowId) {
-      options.fff = 'hello';
-      parent.emit('log', 'setting ' + windowId + ' as window to use');
-      var winToSet = BrowserWindow.fromId(windowId);
-      winToSet.focus();
-      win = winToSet;
-      parent.emit('log', 'current window: ' + win.id);
+      parent.emit('changeFocusWindow', windowId);
       parent.emit('focusWindow');
     });
-
     done();
     return this;
   },
@@ -140,16 +168,17 @@ Nightmare.action('evaluateWindow',
   function(name, options, parent, win, renderer, done) {
     var BrowserWindow = require('electron')
       .BrowserWindow;
-    parent.on('evaluateWindow', function(src) {
-      renderer.once('window-response', function(event, response){
+    parent.on('evaluateWindow', function(focusedWindowId, src) {
+      renderer.once('window-response', function(event, response) {
         parent.emit('evaluateWindow', null, response);
       });
 
-      renderer.once('window-error', function(event, error){
+      renderer.once('window-error', function(event, error) {
         parent.emit('evaluateWindow', error);
       });
 
-      BrowserWindow.getFocusedWindow().webContents.executeJavaScript(src);
+      BrowserWindow.fromId(focusedWindowId)
+        .webContents.executeJavaScript(src);
     });
 
     done();
@@ -157,12 +186,13 @@ Nightmare.action('evaluateWindow',
   },
   function(fn) {
     var args = require('sliced')(arguments);
-    var done = args[args.length-1];
+    var done = args[args.length - 1];
     var fntext = String(fn);
-    var stringArgsList = JSON.stringify(args.slice(1, -1)).slice(1,-1);
+    var stringArgsList = JSON.stringify(args.slice(1, -1))
+      .slice(1, -1);
 
-    this.child.once('evaluateWindow', function(err, result){
-      if(err)return done(err);
+    this.child.once('evaluateWindow', function(err, result) {
+      if (err) return done(err);
       done(null, result);
     });
 
@@ -178,5 +208,5 @@ Nightmare.action('evaluateWindow',
       })();
     `;
 
-    this.child.emit('evaluateWindow', template);
+    this.child.emit('evaluateWindow', this.focusedWindow, template);
   });
