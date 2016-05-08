@@ -7,10 +7,11 @@ This library will not be ready for use until [Nightmare #391](https://github.com
 Add window management to your [Nightmare](http://github.com/segmentio/nightmare) scripts.
 
 ## Usage
-Simply require the library: 
+Simply require the library:
 
 ```js
-require('nightmare-window-manager')
+var Nightmare = require('nightmare')
+require('nightmare-window-manager')(Nightmare)
 ```
 ... and then enable the window manager with `.windowManager()`.  It should be the first call in your Nightmare chain.
 
@@ -38,8 +39,8 @@ Invokes `fn` on the currently selected window with the arguments supplied.  All 
 ## Example
 ```js
 var Nightmare = require('nightmare');
-require('nightmare-window-manager');
-var nightmare = Nighmare();
+require('nightmare-window-manager')(Nightmare);
+var nightmare = Nightmare();
 nightmare
     .windowManager()
     .goto(url)
