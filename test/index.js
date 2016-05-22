@@ -35,7 +35,7 @@ var base = 'http://localhost:7500/';
 
 describe('Nightmare Window Manager', function() {
   before(function(done) {
-    require('../nightmare-window-manager');
+    require('../nightmare-window-manager')(Nightmare);
     server.listen(7500, done);
   });
 
