@@ -1,6 +1,7 @@
 {
   "name": "nightmare-window-manager",
-  "version": "0.2.1",
+  "version": "0.2.2",
+  "description":"add window management to your Nightmare scripts",
   "license": "MIT",
   "main": "./nightmare-window-manager.js",
   "scripts": {
