@@ -19,7 +19,7 @@
     "filter",
     "content"
   ],
-  "peerDependency": {
+  "peerDependencies": {
     "nightmare": ">= 2.3.0"
   },
   "dependencies": {
